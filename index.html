@@ -1,0 +1,190 @@
+<html>
+<head>
+    <title>Trithemius progressive key cipher table</title>
+    <meta charset="utf-8">
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <style type="text/css">
+    table {
+        border-collapse: collapse;
+        border: 2px black solid;
+    }
+    th {
+        border: 1px black solid;
+        font-size: 12px;
+    }
+    td {
+        border: 1px black solid;
+        padding: 2px 4px;
+        text-align: center;
+        width: 10px;
+        height: 10px;
+        font-size: .75em;
+    }
+    .col_0 {
+        font-weight: bold;
+        font-size: 12px;
+    }
+
+    .row-hl {
+        background-color: lightgray;
+    }
+    .col-hl {
+        background-color: yellow;
+    }
+    .plain-sel {
+        background-color: darkgray;
+        color: white;
+    }
+    .encrypt-sel {
+        background-color: blue;
+        color: white;
+    }
+    .text-input {
+        font-size: 1.4em;
+        font-weight: bold;
+        font-family: 'arial';
+        margin: 10px;
+    }
+    </style>
+</head>
+<body>
+    <div id="tabula-recta"></div>
+    <div>
+    <input id="plain_text" class="text-input" type="text" size="20" placeholder="Enter plain text message" />
+    <button onclick="encrypt_message()">Encrypt</button></div>
+    <div>
+    <input id="encrypted_text" class="text-input" type="text" size="20" placeholder="Enter encrypted message" />
+    <button onclick="decrypt_message()">Decrypt</button>
+    </div>
+    <script>
+    // Utility methods
+    d3.selection.prototype.first = function() {
+        return d3.select(this[0][0]);
+    };
+    d3.selection.prototype.last = function() {
+        var last = this.size() - 1;
+        return d3.select(this[0][last]);
+    };
+    var dataset = [],
+    tmpDataset = [],
+    i, j;
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    for (i = 0; i < 26; i++) {
+        for (j = 0, tmpDataset = []; j < alphabet.length; j++) {
+            if (alphabet[j+i]) {
+                tmpDataset.push(alphabet[j+i]);
+            }
+            if (!alphabet[j+i]) {
+                tmpDataset.push(alphabet[j+i-26]);
+            }
+        }
+        tmpDataset.unshift(alphabet[i]);
+        dataset.push(tmpDataset);
+    }
+    alphabet.unshift("");
+    var table = d3.select("#tabula-recta").append("table")
+        thead = table.append("thead"),
+        tbody = table.append("tbody");
+    // append the header row
+    thead.append("tr")
+        .selectAll("th")
+        .data(alphabet)
+        .enter()
+        .append("th")
+        .attr('class', function(d,i){ return "col col_" + i; })
+        .on("mouseover", function(d,i){if(i>0){d3.selectAll('.col_' + i).classed('col-hl', true);}})
+        .on("mouseout", function(d,i){d3.selectAll('.col_' + i).classed('col-hl', false);})
+        .text(function(d) { return d; })
+    // create a row for each object in the data
+    var rows = tbody.selectAll("tr")
+        .data(dataset)
+        .enter()
+        .append("tr")
+        .attr('class', function(d,i){ return "row row_" + i; })
+        .on('mouseover', function(d,i){d3.selectAll('.row_' + i).classed('row-hl', true);})
+        .on('mouseout', function(d,i){d3.selectAll('.row_' + i).classed('row-hl', false);});
+    // create a cell in each row for each column
+    var cells = rows.selectAll("td")
+        .data(function(d){return d;})
+        .enter()
+        .append("td")
+        .attr('class', function(d,i){ return "col col_" + i; })
+        .attr('id', function(d,i){return d + "-" + i;})
+        .on("mouseover", function(d,i){if(i>0){d3.selectAll('.col_' + i).classed('col-hl', true);}})
+        .on("mouseout", function(d,i){d3.selectAll('.col_' + i).classed('col-hl', false);})
+        .text(function(d) { return d; });
+
+    var down = false;
+    var prev = 0;
+    encode = '';
+    d3.select("#plain_text")
+        .on("keydown", function() {
+            keyCode = d3.event.keyCode;
+            if (!down && keyCode != prev) {
+                down = true;
+                setTimeout(function() {
+                    down = false;
+                })
+                letter = String.fromCharCode(d3.event.keyCode)
+                if (keyCode >= 65 && keyCode <= 90) {
+                    var i = document.getElementById('plain_text').value.length + 1;
+                    if (i > alphabet.length) {
+                        i = i - alphabet.length + 1;
+                    }
+                    var num = keyCode - 65;
+                    d3.selectAll(".col_" + i).classed('col-hl', true);
+                    d3.selectAll(".row_" + num).classed('row-hl', true);
+                    d3.selectAll("#" + letter + "-" + 0).classed('plain-sel', true);
+                    d3.selectAll(".row_" + num).select(".col_" + i).classed('encrypt-sel', true);
+                    encode += d3.selectAll(".row_" + num).select(".col_" + i).text();
+                }
+                else {
+                    encode += letter;
+                }
+                prev = keyCode;
+            }
+            else if (prev != keyCode) {
+                down = false;
+            }
+            else {
+                return false;
+            }
+        })
+        .on("keyup", function() {
+            prev = 0;
+            d3.selectAll("th").classed('col-hl', false);
+            d3.selectAll("td").classed('col-hl', false).classed('encrypt-sel', false).classed('plain-sel', false);
+            d3.selectAll("tr").classed('row-hl', false);
+            encrypt_message();
+        });
+    d3.select("#encrypted_text")
+        .on("keyup", function() {
+            decrypt_message();
+        });
+
+    function encrypt_message() {
+        var encrypted_message = '';
+        var message = document.getElementById('plain_text').value;
+        message = message.replace(/\W/g, '').toUpperCase();
+        for (var i = 0, len = message.length; i < len; i++) {
+            encrypted_message += dataset[i][message[i].charCodeAt(0) - 64];
+        }
+        document.getElementById('encrypted_text').value = encrypted_message;
+    }
+    function decrypt_message() {
+        var decrypted_message = '';
+        var text = document.getElementById('encrypted_text').value;
+        text = text.replace(/\W/g, '').toUpperCase();
+        for (var i = 0, leni = text.length; i < leni; i++) {
+            for (var j = 1, lenj = dataset[i].length; j < lenj; j++) {
+                if (dataset[i][j] == text[i]) {
+
+                    decrypted_message += dataset[0][j];
+                }
+            }
+        }
+        document.getElementById('plain_text').value = decrypted_message;
+    }
+    </script>
+</body>
+</html>
